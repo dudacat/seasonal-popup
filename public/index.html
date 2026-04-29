@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>제철코어 🌸 계절별 팝업 알리미</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- 헤더 -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="app-title">제철코어</h1>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-outline" id="favBtn">♡ 찜</button>
+      <button class="btn btn-outline" id="adminBtn">관리자</button>
+      <button class="btn btn-primary" id="addPopupBtn">+ 팝업 추가</button>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- 왼쪽 사이드바 -->
+    <!-- 지도 -->
+    <main class="map-wrapper">
+      <div id="map"></div>
+
+      <!-- 필터 칩 -->
+      <div class="filter-chips" id="filterChips">
+<button class="chip" data-filter="exhibition">🎨 전시</button>
+        <button class="chip" data-filter="popup_store">🛍️ 팝업</button>
+        <button class="chip" data-filter="festival">🎪 페스티벌</button>
+        <button class="chip" data-filter="museum">🏛️ 박물관</button>
+      </div>
+    </main>
+
+    <!-- 오른쪽 상세 패널 -->
+    <div class="detail-panel" id="detailPanel">
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <!-- 팝업 추가 모달 -->
+  <div class="modal" id="addModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>팝업 / 전시 추가</h2>
+        <button class="modal-close" data-close="addModal">✕</button>
+      </div>
+      <form id="addForm">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>팝업 이름 *</label>
+            <input type="text" name="name" placeholder="예: 덕수궁 봄 사진전" required>
+          </div>
+          <div class="form-group full">
+            <label>태그</label>
+            <input type="text" name="keywords" placeholder="예: ✨ 영감 충전, 📸 인생샷 보장 (쉼표로 구분)">
+          </div>
+          <div class="form-group">
+            <label>카테고리 *</label>
+            <select name="category" required>
+              <option value="">선택</option>
+              <option value="exhibition">🎨 전시</option>
+              <option value="popup_store">🛍️ 팝업 스토어</option>
+              <option value="festival">🎪 페스티벌</option>
+              <option value="market">🛒 마켓</option>
+              <option value="museum">🏛️ 박물관</option>
+              <option value="library">📚 도서관</option>
+              <option value="other">📍 기타</option>
+            </select>
+          </div>
+          <div class="form-group" id="seasonGroup">
+            <label>계절 *</label>
+            <select name="season" required>
+              <option value="">선택</option>
+              <option value="spring">🌸 봄</option>
+              <option value="summer">☀️ 여름</option>
+              <option value="fall">🍂 가을</option>
+              <option value="winter">❄️ 겨울</option>
+              <option value="all">🗓️ 사계절</option>
+            </select>
+          </div>
+          <div class="form-group full" id="permanentGroup">
+            <label class="permanent-label">
+              <input type="checkbox" name="is_permanent" id="isPermanentCheck">
+              상설전시 (기간 없음)
+            </label>
+          </div>
+          <div class="form-group" id="startDateGroup">
+            <label>시작일 *</label>
+            <input type="date" name="start_date" required>
+          </div>
+          <div class="form-group" id="endDateGroup">
+            <label>종료일 *</label>
+            <input type="date" name="end_date" required>
+          </div>
+          <div class="form-group full">
+            <label>장소명</label>
+            <input type="text" name="venue" placeholder="예: 갤러리현대, 홍대 특설무대">
+          </div>
+          <div class="form-group full">
+            <label>주소</label>
+            <div class="address-row">
+              <input type="text" name="address" placeholder="예: 서울 중구 정동길 99">
+              <button type="button" class="btn btn-outline btn-geocode" id="geocodeBtn">📍 좌표 찾기</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>위도 (Lat) *</label>
+            <input type="number" name="lat" step="any" placeholder="37.5656" required>
+          </div>
+          <div class="form-group">
+            <label>경도 (Lng) *</label>
+            <input type="number" name="lng" step="any" placeholder="126.9752" required>
+          </div>
+          <div class="form-group full map-pick-hint">
+            💡 주소 입력 후 <strong>좌표 찾기</strong> 버튼을 누르거나, 지도를 <strong>클릭</strong>하면 자동 입력됩니다.
+          </div>
+          <div class="form-group full" id="hoursGroup">
+            <label>운영시간</label>
+            <div id="hoursRows"></div>
+            <button type="button" class="btn btn-outline btn-hours-add" id="addHoursBtn">+ 시간 추가</button>
+            <input type="hidden" name="opening_hours" id="openingHoursHidden">
+          </div>
+          <div class="form-group">
+            <label>휴무일</label>
+            <input type="text" name="closed_days" placeholder="예: 매주 월요일">
+          </div>
+          <div class="form-group">
+            <label>관람료</label>
+            <input type="text" name="admission_fee" placeholder="예: 무료 / 성인 5,000원">
+          </div>
+
+          <div class="form-group full">
+            <label>웹사이트 URL</label>
+            <input type="url" name="website_url" placeholder="https://...">
+          </div>
+
+          <!-- 사진 / 영상 업로드 -->
+          <div class="form-group full">
+            <label>사진 또는 영상</label>
+            <div class="upload-area" id="uploadArea">
+              <input type="file" id="mediaInput"
+                accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                hidden>
+              <div class="upload-placeholder" id="uploadPlaceholder">
+                <span>📷 클릭하거나 파일을 드래그하여 업로드</span>
+                <small>사진: JPG·PNG·GIF·WEBP (10MB) / 영상: MP4·WEBM·MOV·AVI (200MB)</small>
+              </div>
+              <div id="uploadPreviewWrap" style="display:none"></div>
+            </div>
+            <input type="hidden" name="media_path" id="mediaPathInput">
+          </div>
+
+          <div class="form-group full">
+            <label>관리자 비밀번호 *</label>
+            <input type="password" name="adminPassword" placeholder="관리자 비밀번호" required>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-close="addModal">취소</button>
+          <button type="submit" class="btn btn-primary">등록하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 찜 목록 모달 -->
+  <div class="modal" id="favModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>♥ 찜 목록</h2>
+        <button class="modal-close" data-close="favModal">✕</button>
+      </div>
+      <div id="favList" style="padding: 12px 20px 20px;"></div>
+    </div>
+  </div>
+
+  <!-- 관리자 인증 모달 -->
+  <div class="modal" id="adminModal">
+    <div class="modal-box modal-box-sm">
+      <div class="modal-header">
+        <h2>관리자 인증</h2>
+        <button class="modal-close" data-close="adminModal">✕</button>
+      </div>
+      <form id="adminForm">
+        <div class="form-group" style="padding:16px 20px">
+          <label>관리자 비밀번호</label>
+          <input type="password" id="adminPasswordInput" placeholder="비밀번호 입력" required>
+        </div>
+        <p id="adminError" class="error-msg" style="display:none;padding:0 20px"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-close="adminModal">취소</button>
+          <button type="submit" class="btn btn-primary">확인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모달 오버레이 -->
+  <div class="modal-overlay" id="modalOverlay"></div>
+
+  <!-- 토스트 알림 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

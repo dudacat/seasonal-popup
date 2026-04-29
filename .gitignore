@@ -1,0 +1,25 @@
+# 의존성
+node_modules/
+
+# 환경변수 (보안)
+.env
+.env.local
+.env.*.local
+
+# 데이터베이스 (런타임 데이터)
+data/db.json
+
+# 업로드된 미디어 파일 (용량)
+uploads/*
+!uploads/.gitkeep
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+npm-debug.log*
