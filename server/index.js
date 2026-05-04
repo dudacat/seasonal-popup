@@ -5,11 +5,15 @@ const cors = require('cors');
 const path = require('path');
 const { generalLimiter } = require('./middleware/rateLimiter');
 
-const popupsRouter = require('./routes/popups');
+const popupsRouter         = require('./routes/popups');
 const recommendationsRouter = require('./routes/recommendations');
-const uploadRouter = require('./routes/upload');
-const authRouter = require('./routes/auth');
-const seoulImportRouter = require('./routes/seoulImport');
+const uploadRouter          = require('./routes/upload');
+const authRouter            = require('./routes/auth');
+const congestionRouter      = require('./routes/congestion');
+const tipsRouter            = require('./routes/tips');
+const seoulImportRouter     = require('./routes/seoulImport');
+const naverCrawlRouter      = require('./routes/naverCrawl');
+const seedIfEmpty           = require('./seed');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,16 +30,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// 모든 API에 일반 Rate Limit 적용
 app.use('/api', generalLimiter);
 
-app.use('/api/popups', popupsRouter);
+app.use('/api/popups',          popupsRouter);
 app.use('/api/recommendations', recommendationsRouter);
-app.use('/api/upload', uploadRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/seoul-import', seoulImportRouter);
+app.use('/api/upload',          uploadRouter);
+app.use('/api/auth',            authRouter);
+app.use('/api/congestion',      congestionRouter);
+app.use('/api/tips',            tipsRouter);
+app.use('/api/seoul-import',    seoulImportRouter);
+app.use('/api/naver-popup-crawl', naverCrawlRouter);
 
-// 프론트엔드에 Naver Map 클라이언트 ID 전달 (서버사이드 보관)
 app.get('/api/config', (req, res) => {
   res.json({
     naverMapClientId: process.env.NAVER_MAP_CLIENT_ID || '',
@@ -52,8 +57,15 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`🌸 제철코어 서버: http://localhost:${PORT}`);
-});
+seedIfEmpty()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🌸 제철코어 서버: http://localhost:${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('🔥 Firebase 초기화 실패:', err.message);
+    process.exit(1);
+  });
 
 module.exports = app;

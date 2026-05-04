@@ -61,4 +61,16 @@ const congestionLimiter = rateLimit({
   },
 });
 
-module.exports = { generalLimiter, aiLimiter, loginLimiter, uploadLimiter, congestionLimiter };
+// 방문자 팁: IP당 10분에 5번
+const tipLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: '팁 등록이 너무 많습니다. 10분 후 다시 시도해주세요.', retryAfter: '10분' },
+  handler: (req, res, _next, options) => {
+    res.status(429).json(options.message);
+  },
+});
+
+module.exports = { generalLimiter, aiLimiter, loginLimiter, uploadLimiter, congestionLimiter, tipLimiter };

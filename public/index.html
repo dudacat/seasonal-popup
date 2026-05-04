@@ -28,10 +28,11 @@
 
       <!-- 필터 칩 -->
       <div class="filter-chips" id="filterChips">
-<button class="chip" data-filter="exhibition">🎨 전시</button>
-        <button class="chip" data-filter="popup_store">🛍️ 팝업</button>
-        <button class="chip" data-filter="festival">🎪 페스티벌</button>
-        <button class="chip" data-filter="museum">🏛️ 박물관</button>
+<button class="chip chip-white" data-filter="free">무료</button>
+        <button class="chip chip-white" data-filter="exhibition">전시</button>
+        <button class="chip chip-white" data-filter="popup_store">팝업</button>
+        <button class="chip chip-white" data-filter="festival">페스티벌</button>
+        <button class="chip chip-white" data-filter="museum">박물관</button>
       </div>
     </main>
 
@@ -51,16 +52,20 @@
       <form id="addForm">
         <div class="form-grid">
           <div class="form-group full">
-            <label>팝업 이름 *</label>
-            <input type="text" name="name" placeholder="예: 덕수궁 봄 사진전" required>
+            <label>팝업 이름</label>
+            <input type="text" name="name" placeholder="예: 덕수궁 봄 사진전">
+          </div>
+          <div class="form-group full">
+            <label>상세 설명</label>
+            <textarea name="description" rows="3" placeholder="팝업에 대한 간단한 설명을 입력하세요"></textarea>
           </div>
           <div class="form-group full">
             <label>태그</label>
             <input type="text" name="keywords" placeholder="예: ✨ 영감 충전, 📸 인생샷 보장 (쉼표로 구분)">
           </div>
           <div class="form-group">
-            <label>카테고리 *</label>
-            <select name="category" required>
+            <label>카테고리</label>
+            <select name="category">
               <option value="">선택</option>
               <option value="exhibition">🎨 전시</option>
               <option value="popup_store">🛍️ 팝업 스토어</option>
@@ -72,8 +77,8 @@
             </select>
           </div>
           <div class="form-group" id="seasonGroup">
-            <label>계절 *</label>
-            <select name="season" required>
+            <label>계절</label>
+            <select name="season">
               <option value="">선택</option>
               <option value="spring">🌸 봄</option>
               <option value="summer">☀️ 여름</option>
@@ -89,16 +94,20 @@
             </label>
           </div>
           <div class="form-group" id="startDateGroup">
-            <label>시작일 *</label>
-            <input type="date" name="start_date" required>
+            <label>시작일</label>
+            <input type="date" name="start_date">
           </div>
           <div class="form-group" id="endDateGroup">
-            <label>종료일 *</label>
-            <input type="date" name="end_date" required>
+            <label>종료일</label>
+            <input type="date" name="end_date">
           </div>
           <div class="form-group full">
             <label>장소명</label>
             <input type="text" name="venue" placeholder="예: 갤러리현대, 홍대 특설무대">
+          </div>
+          <div class="form-group full">
+            <label>지하철 접근</label>
+            <input type="text" name="nearby_station" placeholder="예: 3호선 안국역 1번 출구, 5호선 광화문역 | 9호선 노들역">
           </div>
           <div class="form-group full">
             <label>주소</label>
@@ -108,12 +117,12 @@
             </div>
           </div>
           <div class="form-group">
-            <label>위도 (Lat) *</label>
-            <input type="number" name="lat" step="any" placeholder="37.5656" required>
+            <label>위도 (Lat)</label>
+            <input type="number" name="lat" step="any" placeholder="37.5656">
           </div>
           <div class="form-group">
-            <label>경도 (Lng) *</label>
-            <input type="number" name="lng" step="any" placeholder="126.9752" required>
+            <label>경도 (Lng)</label>
+            <input type="number" name="lng" step="any" placeholder="126.9752">
           </div>
           <div class="form-group full map-pick-hint">
             💡 주소 입력 후 <strong>좌표 찾기</strong> 버튼을 누르거나, 지도를 <strong>클릭</strong>하면 자동 입력됩니다.
@@ -171,10 +180,24 @@
   <div class="modal" id="favModal">
     <div class="modal-box">
       <div class="modal-header">
-        <h2>♥ 찜 목록</h2>
+        <h2>♥ 찜 &amp; 동선</h2>
         <button class="modal-close" data-close="favModal">✕</button>
       </div>
-      <div id="favList" style="padding: 12px 20px 20px;"></div>
+      <div class="fav-tabs">
+        <button class="fav-tab active" id="tabFavList" onclick="switchFavTab('list')">♥ 찜 목록</button>
+        <button class="fav-tab" id="tabRoutes" onclick="switchFavTab('routes')">🗺️ 내 동선</button>
+      </div>
+      <!-- 찜 목록 탭 -->
+      <div id="favListPane">
+        <div id="favList" style="padding: 12px 20px 0;"></div>
+        <div id="favRouteFooter" style="padding: 12px 20px 20px; display:none;">
+          <button class="btn btn-route-start" id="routeStartBtn" onclick="enterRouteMode()">🗺️ 동선 만들기</button>
+        </div>
+      </div>
+      <!-- 내 동선 탭 -->
+      <div id="favRoutesPane" style="display:none; padding: 12px 20px 20px;">
+        <div id="savedRoutesList"></div>
+      </div>
     </div>
   </div>
 
