@@ -5,7 +5,7 @@ const fs               = require('fs');
 const { randomUUID }   = require('crypto');
 const db               = require('../db');
 
-const UPLOADS_DIR = 'tmp';
+const UPLOADS_DIR = '/tmp';
 const TARGET_URL  =
   'https://m.place.naver.com/popupstore/list' +
   '?query=%ED%8C%9D%EC%97%85%EC%8A%A4%ED%86%A0%EC%96%B4' +

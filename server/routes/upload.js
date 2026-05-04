@@ -6,7 +6,7 @@ const fs      = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { uploadLimiter } = require('../middleware/rateLimiter');
 
-const UPLOAD_DIR  = 'tmp';
+const UPLOAD_DIR  = '/tmp';
 const VIDEO_EXTS  = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv']);
 const IMAGE_EXTS  = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
