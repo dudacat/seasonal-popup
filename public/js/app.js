@@ -432,7 +432,7 @@ function renderClusters() {
     const groups = doCluster(list, radius);
     const result = [];
     for (const g of groups) {
-      if (g.length > 10 && radius > 5) {
+      if (g.length > 15 && radius > 5) {
         result.push(...splitToMaxTen(g, radius / 2));
       } else {
         result.push(g);
