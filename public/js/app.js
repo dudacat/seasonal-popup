@@ -407,31 +407,51 @@ function renderClusters() {
     px: proj.fromCoordToOffset(marker.getPosition()),
   }));
 
-  const used = new Array(items.length).fill(false);
+  function doCluster(list, radius) {
+    const used = new Array(list.length).fill(false);
+    const groups = [];
+    for (let i = 0; i < list.length; i++) {
+      if (used[i]) continue;
+      const group = [list[i]];
+      used[i] = true;
+      for (let j = i + 1; j < list.length; j++) {
+        if (used[j]) continue;
+        const dx = list[i].px.x - list[j].px.x;
+        const dy = list[i].px.y - list[j].px.y;
+        if (Math.sqrt(dx*dx + dy*dy) < radius) {
+          group.push(list[j]);
+          used[j] = true;
+        }
+      }
+      groups.push(group);
+    }
+    return groups;
+  }
 
-  for (let i = 0; i < items.length; i++) {
-    if (used[i]) continue;
-    const group = [i];
-    used[i] = true;
-
-    for (let j = i + 1; j < items.length; j++) {
-      if (used[j]) continue;
-      const dx = items[i].px.x - items[j].px.x;
-      const dy = items[i].px.y - items[j].px.y;
-      if (Math.sqrt(dx * dx + dy * dy) < RADIUS) {
-        group.push(j);
-        used[j] = true;
+  function splitToMaxTen(list, radius) {
+    const groups = doCluster(list, radius);
+    const result = [];
+    for (const g of groups) {
+      if (g.length > 10 && radius > 5) {
+        result.push(...splitToMaxTen(g, radius / 2));
+      } else {
+        result.push(g);
       }
     }
+    return result;
+  }
 
+  const finalGroups = splitToMaxTen(items, RADIUS);
+
+  for (const group of finalGroups) {
     if (group.length === 1) {
-      items[i].marker.setMap(map);
+      group[0].marker.setMap(map);
     } else {
       const count  = group.length;
-      const avgLat = group.reduce((s, k) => s + items[k].popup.lat, 0) / count;
-      const avgLng = group.reduce((s, k) => s + items[k].popup.lng, 0) / count;
+      const avgLat = group.reduce((s, item) => s + item.popup.lat, 0) / count;
+      const avgLng = group.reduce((s, item) => s + item.popup.lng, 0) / count;
       const center = new naver.maps.LatLng(avgLat, avgLng);
-      const groupPopups = group.map(k => items[k].popup);
+      const groupPopups = group.map(item => item.popup);
 
       const sameLatLng = groupPopups.every(
         p => p.lat === groupPopups[0].lat && p.lng === groupPopups[0].lng
