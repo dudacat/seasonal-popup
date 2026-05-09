@@ -1302,6 +1302,17 @@ function getOperatingStatus(popup) {
   return { icon: '🟢', text: '현재 운영 중', cls: 'status-open' };
 }
 
+function fitDetailTitle() {
+  const el = document.querySelector('.detail-title');
+  if (!el) return;
+  let size = 22;
+  el.style.fontSize = size + 'px';
+  while (el.scrollWidth > el.offsetWidth && size > 12) {
+    size -= 0.5;
+    el.style.fontSize = size + 'px';
+  }
+}
+
 // ── 상세 패널 ────────────────────────────────────────────────────
 function showDetail(popup) {
   selectedPopupId = popup.id;
@@ -1427,6 +1438,7 @@ function showDetail(popup) {
     </div>`;
 
   document.getElementById('detailPanel').classList.add('open');
+  fitDetailTitle();
   initCarouselSwipe();
   loadVisitorPhotos(popup.id);
   loadTips(popup.id);

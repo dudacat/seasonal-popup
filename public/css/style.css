@@ -436,7 +436,7 @@ video.carousel-media { object-fit: contain; background: #000; }
   color: var(--primary); border: 1.5px solid var(--primary);
   border-radius: 4px; padding: 2px 8px;
 }
-.detail-title { font-size: 22px; font-weight: 700; line-height: 1.35; letter-spacing: -0.5px; margin: 6px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-title { font-size: 22px; font-weight: 700; line-height: 1.35; letter-spacing: -0.5px; margin: 6px 0 2px; white-space: nowrap; overflow: hidden; }
 .detail-subtitle { font-size: 14px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px; }
 
 /* 하트 버튼 */
