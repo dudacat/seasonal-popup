@@ -9,6 +9,35 @@ function mediaUrl(src) {
   return src.startsWith('http') ? src : `/uploads/${src}`;
 }
 
+async function safeJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch {
+    return { error: res.status === 413 ? '파일이 너무 큽니다. 이미지는 4MB 이하로 업로드해주세요.' : '서버 오류가 발생했습니다.' };
+  }
+}
+
+async function compressImage(file) {
+  if (!file.type.startsWith('image/')) return file;
+  const MAX = 4 * 1024 * 1024;
+  if (file.size <= MAX) return file;
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.sqrt(MAX / file.size) * 0.85;
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.85);
+    };
+    img.src = url;
+  });
+}
+
 // ── 상수 ────────────────────────────────────────────────────────
 const CATEGORY_ICON = {
   exhibition:  '🎨',
@@ -641,10 +670,11 @@ async function handleGalleryUpload(popupId, input) {
   if (!file) return;
   input.disabled = true;
   try {
+    const compressed = await compressImage(file);
     const formData = new FormData();
-    formData.append('media', file);
+    formData.append('media', compressed);
     const uploadRes  = await fetch('/api/upload', { method: 'POST', body: formData });
-    const uploadData = await uploadRes.json();
+    const uploadData = await safeJson(uploadRes);
     if (!uploadRes.ok) throw new Error(uploadData.error);
 
     const addRes  = await fetch(`/api/popups/${popupId}/media`, {
@@ -1465,10 +1495,11 @@ async function handleVisitorPhotoUpload(popupId, input) {
   const origText = label.childNodes[0].textContent;
   label.childNodes[0].textContent = '⏳ 업로드 중...';
   try {
+    const compressed = await compressImage(file);
     const fd = new FormData();
-    fd.append('media', file);
+    fd.append('media', compressed);
     const upRes  = await fetch('/api/upload', { method: 'POST', body: fd });
-    const upData = await upRes.json();
+    const upData = await safeJson(upRes);
     if (!upRes.ok) { toast(upData.error || '업로드 실패', 'error'); return; }
 
     const saveRes = await fetch(`/api/visitor-photos/${popupId}`, {
@@ -1638,11 +1669,12 @@ function initUpload() {
 
   async function handleUpload(file) {
     placeholder.innerHTML = '<span>업로드 중... ⏳</span>';
+    const compressed = await compressImage(file);
     const formData = new FormData();
-    formData.append('media', file);
+    formData.append('media', compressed);
     try {
       const res  = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error);
 
       pathInput.value = data.filename;
