@@ -16,26 +16,28 @@ async function safeJson(res) {
   }
 }
 
-async function compressImage(file) {
-  if (!file.type.startsWith('image/')) return file;
-  const MAX = 4 * 1024 * 1024;
-  if (file.size <= MAX) return file;
-  return new Promise(resolve => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.sqrt(MAX / file.size) * 0.85;
-      const canvas = document.createElement('canvas');
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(blob => {
-        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
-      }, 'image/jpeg', 0.85);
-    };
-    img.src = url;
+async function uploadToStorage(file) {
+  const params = new URLSearchParams({ filename: file.name, contentType: file.type });
+  const sigRes  = await fetch(`/api/upload/signed-url?${params}`);
+  const sigData = await safeJson(sigRes);
+  if (!sigRes.ok) throw new Error(sigData.error || '업로드 준비 실패');
+
+  const { signedUrl, url, type, _path, _token } = sigData;
+
+  const putRes = await fetch(signedUrl, {
+    method:  'PUT',
+    headers: { 'Content-Type': file.type },
+    body:    file,
   });
+  if (!putRes.ok) throw new Error('파일 전송에 실패했습니다.');
+
+  await fetch('/api/upload/finalize', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ path: _path, token: _token }),
+  });
+
+  return { url, filename: url, type, size: file.size };
 }
 
 // ── 상수 ────────────────────────────────────────────────────────
@@ -670,12 +672,8 @@ async function handleGalleryUpload(popupId, input) {
   if (!file) return;
   input.disabled = true;
   try {
-    const compressed = await compressImage(file);
-    const formData = new FormData();
-    formData.append('media', compressed);
-    const uploadRes  = await fetch('/api/upload', { method: 'POST', body: formData });
-    const uploadData = await safeJson(uploadRes);
-    if (!uploadRes.ok) throw new Error(uploadData.error);
+    const uploadData = await uploadToStorage(file);
+    if (!uploadData.url) throw new Error('업로드에 실패했습니다.');
 
     const addRes  = await fetch(`/api/popups/${popupId}/media`, {
       method: 'POST',
@@ -1495,12 +1493,8 @@ async function handleVisitorPhotoUpload(popupId, input) {
   const origText = label.childNodes[0].textContent;
   label.childNodes[0].textContent = '⏳ 업로드 중...';
   try {
-    const compressed = await compressImage(file);
-    const fd = new FormData();
-    fd.append('media', compressed);
-    const upRes  = await fetch('/api/upload', { method: 'POST', body: fd });
-    const upData = await safeJson(upRes);
-    if (!upRes.ok) { toast(upData.error || '업로드 실패', 'error'); return; }
+    const upData = await uploadToStorage(file);
+    if (!upData.url) { toast('업로드 실패', 'error'); return; }
 
     const saveRes = await fetch(`/api/visitor-photos/${popupId}`, {
       method: 'POST',
@@ -1669,13 +1663,9 @@ function initUpload() {
 
   async function handleUpload(file) {
     placeholder.innerHTML = '<span>업로드 중... ⏳</span>';
-    const compressed = await compressImage(file);
-    const formData = new FormData();
-    formData.append('media', compressed);
     try {
-      const res  = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error);
+      const data = await uploadToStorage(file);
+      if (!data.url) throw new Error('업로드에 실패했습니다.');
 
       pathInput.value = data.filename;
       placeholder.style.display = 'none';

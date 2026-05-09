@@ -68,4 +68,51 @@ router.post('/', uploadLimiter, (req, res) => {
   });
 });
 
+router.get('/signed-url', uploadLimiter, async (req, res) => {
+  const { filename, contentType } = req.query;
+  if (!filename || !contentType) {
+    return res.status(400).json({ error: 'filename과 contentType이 필요합니다.' });
+  }
+  const ext = path.extname(filename).toLowerCase().slice(1);
+  if (!IMAGE_EXTS.has(ext) && !VIDEO_EXTS.has(ext)) {
+    return res.status(400).json({ error: '이미지(jpg·png·gif·webp) 또는 동영상(mp4·webm·mov·avi) 파일만 업로드 가능합니다.' });
+  }
+  try {
+    const newName = `${uuidv4()}${path.extname(filename).toLowerCase()}`;
+    const token   = uuidv4();
+    const bucket  = admin.storage().bucket();
+    const blob    = bucket.file(`uploads/${newName}`);
+
+    const [signedUrl] = await blob.getSignedUrl({
+      action:      'write',
+      expires:     Date.now() + 15 * 60 * 1000,
+      contentType,
+    });
+
+    const encodedPath = encodeURIComponent(`uploads/${newName}`);
+    const url  = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+    const type = VIDEO_EXTS.has(ext) ? 'video' : 'image';
+
+    res.json({ signedUrl, url, filename: url, type, _path: `uploads/${newName}`, _token: token });
+  } catch (e) {
+    console.error('Signed URL 생성 실패:', e.message);
+    res.status(500).json({ error: 'Signed URL 생성 실패: ' + e.message });
+  }
+});
+
+router.post('/finalize', async (req, res) => {
+  const { path: storagePath, token } = req.body;
+  if (!storagePath || !token || !storagePath.startsWith('uploads/')) {
+    return res.status(400).json({ error: '잘못된 요청입니다.' });
+  }
+  try {
+    await admin.storage().bucket().file(storagePath)
+      .setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Finalize 실패:', e.message);
+    res.status(500).json({ error: '메타데이터 설정 실패' });
+  }
+});
+
 module.exports = router;

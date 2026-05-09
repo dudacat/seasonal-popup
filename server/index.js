@@ -15,6 +15,11 @@ const visitorPhotosRouter   = require('./routes/visitorPhotos');
 const seoulImportRouter     = require('./routes/seoulImport');
 const naverCrawlRouter      = require('./routes/naverCrawl');
 const seedIfEmpty           = require('./seed');
+const admin                 = require('./firebaseAdmin');
+
+admin.storage().bucket().setMetadata({
+  cors: [{ origin: ['*'], method: ['GET', 'PUT'], maxAgeSeconds: 3600, responseHeader: ['Content-Type'] }],
+}).catch(e => console.warn('Storage CORS 설정 실패:', e.message));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
