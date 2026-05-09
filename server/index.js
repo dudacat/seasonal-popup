@@ -59,7 +59,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-seedIfEmpty()
+const startServer = process.env.NODE_ENV === 'development'
+  ? seedIfEmpty()
+  : Promise.resolve();
+
+startServer
   .then(() => {
     app.listen(PORT, () => {
       console.log(`🌸 제철코어 서버: http://localhost:${PORT}`);

@@ -1,12 +1,17 @@
 require('dotenv').config();
 const db = require('./db');
 
-// db.json의 기존 데이터를 Firestore로 마이그레이션
-const oldData = require('../data/db.json');
-const POPUPS = oldData.popups || Object.values(oldData)[0] || oldData;
-const RECOMMENDATIONS = oldData.recommendations || [];
-
 async function seedIfEmpty() {
+  let POPUPS, RECOMMENDATIONS;
+  try {
+    const oldData = require('../data/db.json');
+    POPUPS = oldData.popups || Object.values(oldData)[0] || oldData;
+    RECOMMENDATIONS = oldData.recommendations || [];
+  } catch (e) {
+    console.log('db.json 파일을 찾을 수 없어 seed를 건너뜁니다.');
+    return;
+  }
+
   const count = await db.count('popups');
   if (count > 0) {
     console.log(`Firestore에 이미 팝업 ${count}개가 있습니다. 건너뜁니다.`);
@@ -15,7 +20,6 @@ async function seedIfEmpty() {
 
   console.log(`🌱 db.json에서 팝업 ${POPUPS.length}개를 Firestore로 업로드 중...`);
 
-  // id, created_at 등 JSON DB 메타 필드 제거 후 삽입
   for (const popup of POPUPS) {
     const { id, created_at, ...data } = popup;
     if (!Array.isArray(data.media_items)) data.media_items = [];
