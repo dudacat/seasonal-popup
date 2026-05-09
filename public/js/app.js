@@ -4,6 +4,11 @@ function esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function mediaUrl(src) {
+  if (!src) return '';
+  return src.startsWith('http') ? src : `/uploads/${src}`;
+}
+
 // ── 상수 ────────────────────────────────────────────────────────
 const CATEGORY_ICON = {
   exhibition:  '🎨',
@@ -151,8 +156,8 @@ function buildCarouselHtml(popup) {
 
   const slidesHtml = slides.map((slide, i) => {
     const mediaEl = slide.type === 'video'
-      ? `<video class="carousel-media" src="/uploads/${slide.src}" controls playsinline></video>`
-      : `<img class="carousel-media" src="/uploads/${slide.src}" alt="">`;
+      ? `<video class="carousel-media" src="${mediaUrl(slide.src)}" controls playsinline></video>`
+      : `<img class="carousel-media" src="${mediaUrl(slide.src)}" alt="">`;
     const deleteBtn = isAdminMode && slide.galleryIdx !== undefined
       ? `<button class="carousel-delete-btn" onclick="event.stopPropagation();removeMedia('${popup.id}',${slide.galleryIdx})">×</button>`
       : '';
@@ -295,7 +300,7 @@ function createMarker(popup, addToMap = false) {
   const content = hasPhoto
     ? `<div class="custom-marker photo-marker" data-id="${popup.id}" title="${popup.name}">
          <div class="marker-photo-wrap">
-           <img src="/uploads/${media}" class="marker-photo" alt="${popup.name}" onerror="this.closest('.photo-marker').classList.add('photo-error')">
+           <img src="${mediaUrl(media)}" class="marker-photo" alt="${popup.name}" onerror="this.closest('.photo-marker').classList.add('photo-error')">
          </div>
        </div>`
     : `<div class="custom-marker" data-id="${popup.id}" title="${popup.name}">
@@ -325,6 +330,10 @@ function clearMarkers() {
   clusterMarkers = [];
   markers.forEach(({ marker }) => marker.setMap(null));
   markers = [];
+}
+
+function onMultiThumbErr(img, icon) {
+  img.parentNode.innerHTML = '<span class="multi-thumb-fallback">' + icon + '</span>';
 }
 
 // ── 클러스터링 ───────────────────────────────────────────────────
@@ -391,27 +400,62 @@ function renderClusters() {
       const avgLat = group.reduce((s, k) => s + items[k].popup.lat, 0) / count;
       const avgLng = group.reduce((s, k) => s + items[k].popup.lng, 0) / count;
       const center = new naver.maps.LatLng(avgLat, avgLng);
-
-      const { size: csz, font: cfs } = clusterSize(count);
-      const cm = new naver.maps.Marker({
-        position: center, map,
-        icon: {
-          content: `<div class="cluster-marker" style="width:${csz}px;height:${csz}px"><span class="cluster-count" style="font-size:${cfs}px">${count}</span></div>`,
-          size: new naver.maps.Size(csz, csz),
-          anchor: new naver.maps.Point(csz / 2, csz / 2),
-        },
-        zIndex: 10,
-      });
       const groupPopups = group.map(k => items[k].popup);
-      naver.maps.Event.addListener(cm, 'click', () => {
-        if (map.getZoom() >= 17) {
-          showClusterList(groupPopups, center);
-        } else {
-          pendingScatterCenter = center;
-          map.setZoom(Math.min(map.getZoom() + 3, 18));
-          map.panTo(center);
-        }
-      });
+
+      const sameLatLng = groupPopups.every(
+        p => p.lat === groupPopups[0].lat && p.lng === groupPopups[0].lng
+      );
+
+      let cm;
+      if (sameLatLng) {
+        const displayCount = Math.min(count, 3);
+        const pad = 4, thumbW = 40, gap = 3, tailH = 8;
+        const totalW = pad * 2 + thumbW * displayCount + gap * (displayCount - 1);
+        const totalH = pad * 2 + thumbW + tailH;
+        const thumbsHtml = groupPopups.slice(0, displayCount).map(p => {
+          const media = p.media_path || p.photo_path || null;
+          const hasPhoto = media && !isVideoFile(media);
+          const icon = CATEGORY_ICON[p.category] || '📍';
+          const click = `event.stopPropagation();showDetail(popups.find(x=>x.id==='${p.id}'))`;
+          if (hasPhoto) {
+            return `<div class="multi-thumb" onclick="${click}"><img src="${mediaUrl(media)}" alt="" onerror="onMultiThumbErr(this,'${icon}')"></div>`;
+          }
+          return `<div class="multi-thumb multi-thumb-icon" onclick="${click}"><span class="multi-thumb-fallback">${icon}</span></div>`;
+        }).join('');
+        const extraIds = count > 3 ? groupPopups.slice(3).map(p => p.id).join(',') : '';
+        const extraBadge = count > 3
+          ? `<div class="multi-marker-extra" onclick="event.stopPropagation();showGroupByIds('${extraIds}',${avgLat},${avgLng})">+${count - 3}</div>`
+          : '';
+        cm = new naver.maps.Marker({
+          position: center, map,
+          icon: {
+            content: `<div class="multi-marker" style="position:relative">${thumbsHtml}${extraBadge}</div>`,
+            size: new naver.maps.Size(totalW, totalH),
+            anchor: new naver.maps.Point(totalW / 2, totalH),
+          },
+          zIndex: 10,
+        });
+      } else {
+        const { size: csz, font: cfs } = clusterSize(count);
+        cm = new naver.maps.Marker({
+          position: center, map,
+          icon: {
+            content: `<div class="cluster-marker" style="width:${csz}px;height:${csz}px"><span class="cluster-count" style="font-size:${cfs}px">${count}</span></div>`,
+            size: new naver.maps.Size(csz, csz),
+            anchor: new naver.maps.Point(csz / 2, csz / 2),
+          },
+          zIndex: 10,
+        });
+        naver.maps.Event.addListener(cm, 'click', () => {
+          if (map.getZoom() >= 17) {
+            showClusterList(groupPopups, center);
+          } else {
+            pendingScatterCenter = center;
+            map.setZoom(Math.min(map.getZoom() + 3, 18));
+            map.panTo(center);
+          }
+        });
+      }
       clusterMarkers.push(cm);
     }
   }
@@ -442,6 +486,11 @@ function renderClusters() {
   } else {
     pendingScatterCenter = null;
   }
+}
+
+function showGroupByIds(idsStr, lat, lng) {
+  const list = idsStr.split(',').map(id => popups.find(x => x.id === id)).filter(Boolean);
+  showClusterList(list, new naver.maps.LatLng(lat, lng));
 }
 
 function showClusterList(popupList, center) {
@@ -505,7 +554,7 @@ function buildGalleryHtml(popup) {
 
   const cells = items.map((item, idx) => {
     const isVid = item.type === 'video' || isVideoFile(item.filename);
-    const url   = `/uploads/${item.filename}`;
+    const url   = mediaUrl(item.filename);
     return `
       <div class="gallery-item${items.length === 1 ? ' gallery-item-full' : ''}" onclick="openLightbox('${popup.id}',${idx})">
         ${isVid
@@ -540,7 +589,7 @@ function openLightbox(popupId, startIndex) {
   function render(i) {
     const item  = items[i];
     const isVid = item.type === 'video' || isVideoFile(item.filename);
-    const url   = `/uploads/${item.filename}`;
+    const url   = mediaUrl(item.filename);
     overlay.innerHTML = `
       <button class="lightbox-close" onclick="event.stopPropagation()">✕</button>
       ${multi ? `<button class="lightbox-prev" onclick="event.stopPropagation()">&#8249;</button>` : ''}
@@ -647,7 +696,9 @@ function shareKakao(popupId) {
   if (!popup) return;
 
   const media    = popup.media_path || popup.photo_path;
-  const imageUrl = media && !isVideoFile(media) ? `${location.origin}/uploads/${media}` : null;
+  const imageUrl = media && !isVideoFile(media)
+    ? (media.startsWith('http') ? media : `${location.origin}/uploads/${media}`)
+    : null;
   // 공유 받은 사람이 링크를 누르면 해당 팝업 상세가 바로 열리는 딥링크
   const shareUrl = `${location.origin}${location.pathname}?popup=${popupId}`;
 
@@ -763,7 +814,7 @@ function buildFavListHtml() {
   return favPopups.map(p => {
     const media = p.media_path || p.photo_path;
     const thumb = media && !isVideoFile(media)
-      ? `<img src="/uploads/${media}" class="fav-thumb" alt="">`
+      ? `<img src="${mediaUrl(media)}" class="fav-thumb" alt="">`
       : `<div class="fav-thumb fav-thumb-empty">${CATEGORY_ICON[p.category] || '📍'}</div>`;
     return `
       <div class="fav-item" onclick="openFavPopup('${p.id}')">
@@ -831,17 +882,13 @@ function buildSavedRoutesHtml() {
   }
   return routes.slice().reverse().map(r => {
     const validCount = r.popupIds.filter(id => popups.find(p => p.id === id && p.lat && p.lng)).length;
-    const date = new Date(r.createdAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
     return `
-      <div class="saved-route-item">
-        <div class="saved-route-info" onclick="loadSavedRoute('${r.id}')">
+      <div class="saved-route-item" onclick="loadSavedRoute('${r.id}')">
+        <div class="saved-route-info">
           <div class="saved-route-name">${esc(r.name)}</div>
-          <div class="saved-route-meta">📍 ${validCount}곳 · ${date}</div>
+          <div class="saved-route-meta">📍 ${validCount}곳</div>
         </div>
-        <div class="saved-route-actions">
-          <button class="btn btn-primary btn-sm" onclick="loadSavedRoute('${r.id}')">지도 보기</button>
-          <button class="btn btn-outline btn-sm btn-del-route" onclick="event.stopPropagation();deleteSavedRouteItem('${r.id}')">삭제</button>
-        </div>
+        <button class="fav-remove-btn" onclick="event.stopPropagation();deleteSavedRouteItem('${r.id}')" title="삭제">✕</button>
       </div>`;
   }).join('');
 }
@@ -977,7 +1024,7 @@ async function _drawRoute() {
   try {
     const waypoints = ordered.map(p => `${p.lng},${p.lat}`).join(';');
     const res  = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=full&geometries=geojson`,
+      `https://router.project-osrm.org/route/v1/foot/${waypoints}?overview=full&geometries=geojson`,
       { signal }
     );
     const data = await res.json();
@@ -989,7 +1036,7 @@ async function _drawRoute() {
       if (routePolyline) routePolyline.setMap(null);
       routePolyline = new naver.maps.Polyline({
         map, path,
-        strokeColor: '#FF85A2',
+        strokeColor: '#1565C0',
         strokeWeight: 4,
         strokeOpacity: 0.9,
       });
@@ -1259,7 +1306,10 @@ function showDetail(popup) {
         const tags = (popup.keywords || '').split(',').map(t => t.trim()).filter(Boolean);
         const firstTag = tags[0] || '';
         const accentBadge = firstTag ? `<span class="detail-accent-badge">${esc(firstTag)}</span>` : '';
-        const feeBadge = popup.admission_fee ? `<span class="detail-fee-badge">${esc(popup.admission_fee)}</span>` : '';
+        const feeParts = (popup.admission_fee || '').split('.').map(s => s.trim()).filter(Boolean);
+        const feeBadge = feeParts.map((p, i) =>
+          `<span class="detail-fee-badge${i > 0 ? ' detail-fee-badge-alt' : ''}">${esc(p)}</span>`
+        ).join(' ');
         const badgeRow = accentBadge ? `<div class="detail-badge-row">${accentBadge}</div>` : '';
         return `
       <div class="detail-title-section">
@@ -1302,7 +1352,7 @@ function showDetail(popup) {
         }).join('');
       })()}
       ${!popup.is_permanent && (popup.start_date || popup.end_date)
-        ? `<div class="detail-date-range"><span class="detail-info-icon">${ICON.calendar}</span>${formatDate(popup.start_date)} ~ ${formatDate(popup.end_date)}</div>`
+        ? `<div class="detail-info-row"><span class="detail-info-icon">${ICON.calendar}</span><span class="detail-info-text">${formatDate(popup.start_date)} ~ ${formatDate(popup.end_date)}</span></div>`
         : ''}
       <div class="detail-info-row"><span class="detail-info-icon">${opStatus.icon}</span><span class="operating-badge ${opStatus.cls}">${opStatus.text}</span></div>
       ${(() => {
@@ -1324,6 +1374,15 @@ function showDetail(popup) {
       ${buildGalleryHtml(popup)}
 
       <div class="tips-section">
+        <div class="tips-header">방문자 사진·영상</div>
+        <div id="visitorPhotoGrid" class="visitor-photo-grid"></div>
+        <label class="visitor-photo-add">
+          📷 사진·영상 추가
+          <input type="file" hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo" onchange="handleVisitorPhotoUpload('${popup.id}',this)">
+        </label>
+      </div>
+
+      <div class="tips-section">
         <div class="tips-header">방문자 리뷰</div>
         <ul class="tips-list" id="tipsList"><li class="tips-loading">불러오는 중...</li></ul>
         <div class="tips-input-row">
@@ -1341,6 +1400,7 @@ function showDetail(popup) {
 
   document.getElementById('detailPanel').classList.add('open');
   initCarouselSwipe();
+  loadVisitorPhotos(popup.id);
   loadTips(popup.id);
 }
 
@@ -1364,6 +1424,117 @@ function relativeTime(dateStr) {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}일 전`;
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
+let _visitorPhotos = [];
+
+async function loadVisitorPhotos(popupId) {
+  const grid = document.getElementById('visitorPhotoGrid');
+  if (!grid) return;
+  try {
+    const res    = await fetch(`/api/visitor-photos/${popupId}`);
+    const photos = await res.json();
+    _visitorPhotos = photos;
+    if (!photos.length) { grid.innerHTML = '<p class="tips-empty">아직 등록된 사진이 없어요.</p>'; return; }
+    grid.innerHTML = photos.map((p, i) => {
+      const deleteBtn = isAdminMode
+        ? `<button class="vp-delete-btn" onclick="deleteVisitorPhoto('${p.id}','${popupId}',event)">✕</button>`
+        : '';
+      if (p.type === 'video') {
+        return `<div class="vp-item" onclick="openVisitorLightbox(${i})">
+          <video class="vp-media" src="${p.url}" muted playsinline></video>
+          <span class="vp-play">▶</span>
+          ${deleteBtn}
+        </div>`;
+      }
+      return `<div class="vp-item" onclick="openVisitorLightbox(${i})">
+        <img class="vp-media" src="${p.url}" alt="" loading="lazy">
+        ${deleteBtn}
+      </div>`;
+    }).join('');
+  } catch {
+    if (grid) grid.innerHTML = '<p class="tips-empty">불러오기 실패</p>';
+  }
+}
+
+async function handleVisitorPhotoUpload(popupId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const label = input.closest('label');
+  const origText = label.childNodes[0].textContent;
+  label.childNodes[0].textContent = '⏳ 업로드 중...';
+  try {
+    const fd = new FormData();
+    fd.append('media', file);
+    const upRes  = await fetch('/api/upload', { method: 'POST', body: fd });
+    const upData = await upRes.json();
+    if (!upRes.ok) { toast(upData.error || '업로드 실패', 'error'); return; }
+
+    const saveRes = await fetch(`/api/visitor-photos/${popupId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: upData.url, type: upData.type }),
+    });
+    if (!saveRes.ok) { toast('저장 실패', 'error'); return; }
+    toast('사진이 등록됐어요! 📸');
+    await loadVisitorPhotos(popupId);
+  } catch {
+    toast('서버 오류가 발생했습니다.', 'error');
+  } finally {
+    label.childNodes[0].textContent = origText;
+  }
+}
+
+async function deleteVisitorPhoto(id, popupId, e) {
+  e.stopPropagation();
+  if (!confirm('이 사진·영상을 삭제할까요?')) return;
+  try {
+    const res = await fetch(`/api/visitor-photos/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: storedAdminPassword }),
+    });
+    if (!res.ok) { toast('삭제 실패', 'error'); return; }
+    toast('삭제됐습니다.');
+    await loadVisitorPhotos(popupId);
+  } catch {
+    toast('서버 오류가 발생했습니다.', 'error');
+  }
+}
+
+function openVisitorLightbox(startIndex) {
+  const photos = _visitorPhotos;
+  if (!photos.length) return;
+  let cur = startIndex;
+  const multi = photos.length > 1;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'lightbox-overlay active';
+  document.body.appendChild(overlay);
+
+  function render(i) {
+    const p = photos[i];
+    const media = p.type === 'video'
+      ? `<video src="${p.url}" controls autoplay playsinline class="lightbox-media"></video>`
+      : `<img src="${p.url}" class="lightbox-media" alt="">`;
+    overlay.innerHTML = `
+      <button class="lightbox-close">✕</button>
+      ${multi ? `<button class="lightbox-prev">&#8249;</button>` : ''}
+      ${media}
+      ${multi ? `<button class="lightbox-next">&#8250;</button>` : ''}
+      ${multi ? `<div class="lightbox-counter">${i + 1} / ${photos.length}</div>` : ''}
+    `;
+    overlay.querySelector('.lightbox-media').addEventListener('click', e => e.stopPropagation());
+    overlay.querySelector('.lightbox-close').addEventListener('click', e => { e.stopPropagation(); overlay.remove(); });
+    if (multi) {
+      overlay.querySelector('.lightbox-prev').addEventListener('click', e => { e.stopPropagation(); cur = (cur - 1 + photos.length) % photos.length; render(cur); });
+      overlay.querySelector('.lightbox-next').addEventListener('click', e => { e.stopPropagation(); cur = (cur + 1) % photos.length; render(cur); });
+    }
+  }
+
+  overlay.addEventListener('click', () => overlay.remove());
+  render(cur);
 }
 
 async function loadTips(popupId) {
@@ -1612,8 +1783,8 @@ function openEditModal(popup) {
     placeholder.style.display = 'none';
     previewWrap.style.display  = 'block';
     previewWrap.innerHTML = isVideoFile(media)
-      ? `<video src="/uploads/${media}" controls class="upload-preview-media"></video><div class="upload-preview-info">🎬 현재 영상 (새 파일로 교체 가능)</div>`
-      : `<img src="/uploads/${media}" class="upload-preview-media" alt="현재 사진"><div class="upload-preview-info">📷 현재 사진 (새 파일로 교체 가능)</div>`;
+      ? `<video src="${mediaUrl(media)}" controls class="upload-preview-media"></video><div class="upload-preview-info">🎬 현재 영상 (새 파일로 교체 가능)</div>`
+      : `<img src="${mediaUrl(media)}" class="upload-preview-media" alt="현재 사진"><div class="upload-preview-info">📷 현재 사진 (새 파일로 교체 가능)</div>`;
   } else {
     pathInput.value          = '';
     placeholder.style.display = 'flex';

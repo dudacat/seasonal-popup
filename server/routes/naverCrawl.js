@@ -240,6 +240,10 @@ async function crawlNaverPopups(maxItems) {
 
 // ── POST /api/naver-popup-crawl ──────────────────────────────────
 router.post('/', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(503).json({ error: '크롤링 기능은 로컬 환경에서만 사용 가능합니다.' });
+  }
+
   const { adminPassword, maxItems = 30 } = req.body;
 
   if (adminPassword !== process.env.ADMIN_PASSWORD) {
@@ -264,7 +268,7 @@ router.post('/', async (req, res) => {
   }
 
   // ── DB 저장 ────────────────────────────────────────────────────
-  const existing  = new Set(db.filter('popups', () => true).map(p => p.name));
+  const existing  = new Set((await db.filter('popups', () => true)).map(p => p.name));
   let inserted    = 0;
   let skipped     = 0;
   const savedItems = [];
@@ -279,7 +283,7 @@ router.post('/', async (req, res) => {
 
     const mediaPath = await downloadThumb(item.imageUrl);
 
-    const popup = db.insert('popups', {
+    const popup = await db.insert('popups', {
       name:          item.name,
       description:   '',
       lat:           item.lat  ?? 37.5666,

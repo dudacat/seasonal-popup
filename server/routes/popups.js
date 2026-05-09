@@ -44,6 +44,19 @@ router.post('/', async (req, res) => {
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
       return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
     }
+
+    // 같은 venue에 최대 3개 제한
+    if (venue && venue.trim()) {
+      const sameVenue = await db.filter('popups', p =>
+        p.is_active === 1 &&
+        p.venue &&
+        p.venue.toLowerCase().trim() === venue.toLowerCase().trim()
+      );
+      if (sameVenue.length >= 3) {
+        return res.status(400).json({ error: '한 장소에 최대 3개의 팝업만 등록할 수 있습니다.' });
+      }
+    }
+
     const popup = await db.insert('popups', {
       name: name || '',
       description: description || '',

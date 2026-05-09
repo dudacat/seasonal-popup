@@ -11,6 +11,7 @@ const uploadRouter          = require('./routes/upload');
 const authRouter            = require('./routes/auth');
 const congestionRouter      = require('./routes/congestion');
 const tipsRouter            = require('./routes/tips');
+const visitorPhotosRouter   = require('./routes/visitorPhotos');
 const seoulImportRouter     = require('./routes/seoulImport');
 const naverCrawlRouter      = require('./routes/naverCrawl');
 const seedIfEmpty           = require('./seed');
@@ -38,6 +39,7 @@ app.use('/api/upload',          uploadRouter);
 app.use('/api/auth',            authRouter);
 app.use('/api/congestion',      congestionRouter);
 app.use('/api/tips',            tipsRouter);
+app.use('/api/visitor-photos',  visitorPhotosRouter);
 app.use('/api/seoul-import',    seoulImportRouter);
 app.use('/api/naver-popup-crawl', naverCrawlRouter);
 

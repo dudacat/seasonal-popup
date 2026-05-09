@@ -1,13 +1,9 @@
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 
 let _firestore = null;
 
 function getFirestore() {
   if (_firestore) return _firestore;
-  if (!admin.apps.length) {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ credential: admin.credential.cert(sa) });
-  }
   _firestore = admin.firestore();
   return _firestore;
 }
