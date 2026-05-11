@@ -16,8 +16,31 @@ async function safeJson(res) {
   }
 }
 
+async function compressImage(file, maxPx = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      let { width, height } = img;
+      if (width <= maxPx && height <= maxPx) { resolve(file); return; }
+      if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+      else { width = Math.round(width * maxPx / height); height = maxPx; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(new File([blob], file.name, { type: 'image/jpeg' })), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+    img.src = objUrl;
+  });
+}
+
 async function uploadToStorage(file) {
-  const params = new URLSearchParams({ filename: file.name, contentType: file.type });
+  const isImage = file.type.startsWith('image/');
+  const uploadFile = isImage ? await compressImage(file) : file;
+
+  const params = new URLSearchParams({ filename: uploadFile.name, contentType: uploadFile.type });
   const sigRes  = await fetch(`/api/upload/signed-url?${params}`);
   const sigData = await safeJson(sigRes);
   if (!sigRes.ok) throw new Error(sigData.error || '업로드 준비 실패');
@@ -26,8 +49,8 @@ async function uploadToStorage(file) {
 
   const putRes = await fetch(signedUrl, {
     method:  'PUT',
-    headers: { 'Content-Type': file.type },
-    body:    file,
+    headers: { 'Content-Type': uploadFile.type },
+    body:    uploadFile,
   });
   if (!putRes.ok) throw new Error('파일 전송에 실패했습니다.');
 
@@ -37,7 +60,7 @@ async function uploadToStorage(file) {
     body:    JSON.stringify({ path: _path, token: _token }),
   });
 
-  return { url, filename: url, type, size: file.size };
+  return { url, filename: url, type, size: uploadFile.size };
 }
 
 // ── 상수 ────────────────────────────────────────────────────────
