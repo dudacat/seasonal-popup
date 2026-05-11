@@ -210,13 +210,15 @@ function buildCarouselHtml(popup) {
 
   const slidesHtml = slides.map((slide, i) => {
     const url = mediaUrl(slide.src);
+    // 0·1번 슬라이드는 즉시 로드, 나머지는 data-src로 지연
+    const eager = i <= 1;
     const mediaEl = slide.type === 'video'
-      ? (i === 0
+      ? (eager
           ? `<video class="carousel-media" src="${url}" controls playsinline preload="metadata"></video>`
           : `<video class="carousel-media" data-src="${url}" controls playsinline preload="none"></video>`)
-      : (i === 0
+      : (eager
           ? `<img class="carousel-media" src="${url}" alt="">`
-          : `<img class="carousel-media" data-src="${url}" alt="" loading="lazy">`);
+          : `<img class="carousel-media" data-src="${url}" alt="">`);
     const deleteBtn = isAdminMode && slide.galleryIdx !== undefined
       ? `<button class="carousel-delete-btn" onclick="event.stopPropagation();removeMedia('${popup.id}',${slide.galleryIdx})">×</button>`
       : '';
@@ -251,16 +253,22 @@ function carouselMove(dir) {
   carouselGoTo((current + dir + total) % total);
 }
 
+function carouselLoadSlide(slide) {
+  if (!slide) return;
+  const media = slide.querySelector('[data-src]');
+  if (media) { media.src = media.dataset.src; delete media.dataset.src; }
+}
+
 function carouselGoTo(idx) {
   const carousel = document.getElementById('detailCarousel');
   if (!carousel) return;
-  carousel.querySelectorAll('.carousel-slide').forEach((s, i) => {
-    s.classList.toggle('active', i === idx);
-    if (i === idx) {
-      const media = s.querySelector('[data-src]');
-      if (media) { media.src = media.dataset.src; delete media.dataset.src; }
-    }
-  });
+  const total  = parseInt(carousel.dataset.total);
+  const slides = carousel.querySelectorAll('.carousel-slide');
+  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  // 현재 슬라이드 + 앞뒤 슬라이드 미리 로드
+  carouselLoadSlide(slides[idx]);
+  carouselLoadSlide(slides[(idx + 1) % total]);
+  carouselLoadSlide(slides[(idx - 1 + total) % total]);
   carousel.dataset.current = idx;
   const dotsEl = document.getElementById('carouselDots');
   if (dotsEl) dotsEl.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
