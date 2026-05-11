@@ -507,9 +507,9 @@ video.carousel-media { object-fit: contain; background: #000; }
 
 
 /* ── 방문자 팁 ───────────────────────────────── */
-.tips-section { margin-top: 20px; padding-top: 16px; }
-.tips-header { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
-.tips-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tips-section { margin-top: 12px; padding-top: 12px; }
+.tips-header { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.tips-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; }
 .tips-loading, .tips-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 6px 0; }
 .tip-item { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; line-height: 1.5; }
 .tip-bullet { font-size: 14px; flex-shrink: 0; margin-top: 1px; }

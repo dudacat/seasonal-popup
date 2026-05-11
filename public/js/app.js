@@ -571,7 +571,13 @@ async function loadPopups(season = 'all') {
     const url = season !== 'all' ? `/api/popups?season=${season}` : '/api/popups';
     const res = await fetch(url);
     if (!res.ok) throw new Error();
-    popups = await res.json();
+    const all = await res.json();
+    if (!isAdminMode) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      popups = all.filter(p => p.is_permanent || !p.end_date || new Date(p.end_date) >= today);
+    } else {
+      popups = all;
+    }
     clearMarkers();
     popups.forEach(p => createMarker(p, false));
     renderClusters();
@@ -1433,15 +1439,6 @@ function showDetail(popup) {
       ${buildGalleryHtml(popup)}
 
       <div class="tips-section">
-        <div class="tips-header">방문자 사진·영상</div>
-        <div id="visitorPhotoGrid" class="visitor-photo-grid"></div>
-        <label class="visitor-photo-add">
-          📷 사진·영상 추가
-          <input type="file" hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo" onchange="handleVisitorPhotoUpload('${popup.id}',this)">
-        </label>
-      </div>
-
-      <div class="tips-section">
         <div class="tips-header">방문자 리뷰</div>
         <ul class="tips-list" id="tipsList"><li class="tips-loading">불러오는 중...</li></ul>
         <div class="tips-input-row">
@@ -1460,7 +1457,6 @@ function showDetail(popup) {
   document.getElementById('detailPanel').classList.add('open');
   fitDetailTitle();
   initCarouselSwipe();
-  loadVisitorPhotos(popup.id);
   loadTips(popup.id);
 }
 
@@ -1484,114 +1480,6 @@ function relativeTime(dateStr) {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}일 전`;
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-}
-
-let _visitorPhotos = [];
-
-async function loadVisitorPhotos(popupId) {
-  const grid = document.getElementById('visitorPhotoGrid');
-  if (!grid) return;
-  try {
-    const res    = await fetch(`/api/visitor-photos/${popupId}`);
-    const photos = await res.json();
-    _visitorPhotos = photos;
-    if (!photos.length) { grid.innerHTML = '<p class="tips-empty">아직 등록된 사진이 없어요.</p>'; return; }
-    grid.innerHTML = photos.map((p, i) => {
-      const deleteBtn = isAdminMode
-        ? `<button class="vp-delete-btn" onclick="deleteVisitorPhoto('${p.id}','${popupId}',event)">✕</button>`
-        : '';
-      if (p.type === 'video') {
-        return `<div class="vp-item" onclick="openVisitorLightbox(${i})">
-          <video class="vp-media" src="${p.url}" muted playsinline></video>
-          <span class="vp-play">▶</span>
-          ${deleteBtn}
-        </div>`;
-      }
-      return `<div class="vp-item" onclick="openVisitorLightbox(${i})">
-        <img class="vp-media" src="${p.url}" alt="" loading="lazy">
-        ${deleteBtn}
-      </div>`;
-    }).join('');
-  } catch {
-    if (grid) grid.innerHTML = '<p class="tips-empty">불러오기 실패</p>';
-  }
-}
-
-async function handleVisitorPhotoUpload(popupId, input) {
-  const file = input.files[0];
-  if (!file) return;
-  input.value = '';
-  const label = input.closest('label');
-  const origText = label.childNodes[0].textContent;
-  label.childNodes[0].textContent = '⏳ 업로드 중...';
-  try {
-    const upData = await uploadToStorage(file);
-    if (!upData.url) { toast('업로드 실패', 'error'); return; }
-
-    const saveRes = await fetch(`/api/visitor-photos/${popupId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: upData.url, type: upData.type }),
-    });
-    if (!saveRes.ok) { toast('저장 실패', 'error'); return; }
-    toast('사진이 등록됐어요! 📸');
-    await loadVisitorPhotos(popupId);
-  } catch {
-    toast('서버 오류가 발생했습니다.', 'error');
-  } finally {
-    label.childNodes[0].textContent = origText;
-  }
-}
-
-async function deleteVisitorPhoto(id, popupId, e) {
-  e.stopPropagation();
-  if (!confirm('이 사진·영상을 삭제할까요?')) return;
-  try {
-    const res = await fetch(`/api/visitor-photos/${id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: storedAdminPassword }),
-    });
-    if (!res.ok) { toast('삭제 실패', 'error'); return; }
-    toast('삭제됐습니다.');
-    await loadVisitorPhotos(popupId);
-  } catch {
-    toast('서버 오류가 발생했습니다.', 'error');
-  }
-}
-
-function openVisitorLightbox(startIndex) {
-  const photos = _visitorPhotos;
-  if (!photos.length) return;
-  let cur = startIndex;
-  const multi = photos.length > 1;
-
-  const overlay = document.createElement('div');
-  overlay.className = 'lightbox-overlay active';
-  document.body.appendChild(overlay);
-
-  function render(i) {
-    const p = photos[i];
-    const media = p.type === 'video'
-      ? `<video src="${p.url}" controls autoplay playsinline class="lightbox-media"></video>`
-      : `<img src="${p.url}" class="lightbox-media" alt="">`;
-    overlay.innerHTML = `
-      <button class="lightbox-close">✕</button>
-      ${multi ? `<button class="lightbox-prev">&#8249;</button>` : ''}
-      ${media}
-      ${multi ? `<button class="lightbox-next">&#8250;</button>` : ''}
-      ${multi ? `<div class="lightbox-counter">${i + 1} / ${photos.length}</div>` : ''}
-    `;
-    overlay.querySelector('.lightbox-media').addEventListener('click', e => e.stopPropagation());
-    overlay.querySelector('.lightbox-close').addEventListener('click', e => { e.stopPropagation(); overlay.remove(); });
-    if (multi) {
-      overlay.querySelector('.lightbox-prev').addEventListener('click', e => { e.stopPropagation(); cur = (cur - 1 + photos.length) % photos.length; render(cur); });
-      overlay.querySelector('.lightbox-next').addEventListener('click', e => { e.stopPropagation(); cur = (cur + 1) % photos.length; render(cur); });
-    }
-  }
-
-  overlay.addEventListener('click', () => overlay.remove());
-  render(cur);
 }
 
 async function loadTips(popupId) {
