@@ -186,9 +186,14 @@ function buildCarouselHtml(popup) {
   }
 
   const slidesHtml = slides.map((slide, i) => {
+    const url = mediaUrl(slide.src);
     const mediaEl = slide.type === 'video'
-      ? `<video class="carousel-media" src="${mediaUrl(slide.src)}" controls playsinline></video>`
-      : `<img class="carousel-media" src="${mediaUrl(slide.src)}" alt="">`;
+      ? (i === 0
+          ? `<video class="carousel-media" src="${url}" controls playsinline preload="metadata"></video>`
+          : `<video class="carousel-media" data-src="${url}" controls playsinline preload="none"></video>`)
+      : (i === 0
+          ? `<img class="carousel-media" src="${url}" alt="">`
+          : `<img class="carousel-media" data-src="${url}" alt="" loading="lazy">`);
     const deleteBtn = isAdminMode && slide.galleryIdx !== undefined
       ? `<button class="carousel-delete-btn" onclick="event.stopPropagation();removeMedia('${popup.id}',${slide.galleryIdx})">×</button>`
       : '';
@@ -226,7 +231,13 @@ function carouselMove(dir) {
 function carouselGoTo(idx) {
   const carousel = document.getElementById('detailCarousel');
   if (!carousel) return;
-  carousel.querySelectorAll('.carousel-slide').forEach((s, i) => s.classList.toggle('active', i === idx));
+  carousel.querySelectorAll('.carousel-slide').forEach((s, i) => {
+    s.classList.toggle('active', i === idx);
+    if (i === idx) {
+      const media = s.querySelector('[data-src]');
+      if (media) { media.src = media.dataset.src; delete media.dataset.src; }
+    }
+  });
   carousel.dataset.current = idx;
   const dotsEl = document.getElementById('carouselDots');
   if (dotsEl) dotsEl.querySelectorAll('.carousel-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
@@ -331,7 +342,7 @@ function createMarker(popup, addToMap = false) {
   const content = hasPhoto
     ? `<div class="custom-marker photo-marker" data-id="${popup.id}" title="${popup.name}">
          <div class="marker-photo-wrap">
-           <img src="${mediaUrl(media)}" class="marker-photo" alt="${popup.name}" onerror="this.closest('.photo-marker').classList.add('photo-error')">
+           <img src="${mediaUrl(media)}" class="marker-photo" alt="${popup.name}" loading="lazy" onerror="this.closest('.photo-marker').classList.add('photo-error')">
          </div>
        </div>`
     : `<div class="custom-marker" data-id="${popup.id}" title="${popup.name}">
@@ -469,7 +480,7 @@ function renderClusters() {
           const icon = CATEGORY_ICON[p.category] || '📍';
           const click = `event.stopPropagation();showDetail(popups.find(x=>x.id==='${p.id}'))`;
           if (hasPhoto) {
-            return `<div class="multi-thumb" onclick="${click}"><img src="${mediaUrl(media)}" alt="" onerror="onMultiThumbErr(this,'${icon}')"></div>`;
+            return `<div class="multi-thumb" onclick="${click}"><img src="${mediaUrl(media)}" alt="" loading="lazy" onerror="onMultiThumbErr(this,'${icon}')"></div>`;
           }
           return `<div class="multi-thumb multi-thumb-icon" onclick="${click}"><span class="multi-thumb-fallback">${icon}</span></div>`;
         }).join('');
@@ -615,7 +626,7 @@ function buildGalleryHtml(popup) {
     return `
       <div class="gallery-item${items.length === 1 ? ' gallery-item-full' : ''}" onclick="openLightbox('${popup.id}',${idx})">
         ${isVid
-          ? `<video src="${url}" class="gallery-item-media"></video>
+          ? `<video src="${url}" class="gallery-item-media" preload="none"></video>
              <div class="gallery-play-icon"><span>▶</span></div>`
           : `<img src="${url}" class="gallery-item-media" alt="" loading="lazy">`}
         ${isAdminMode ? `<button class="gallery-delete-btn" onclick="event.stopPropagation();removeMedia('${popup.id}',${idx})">×</button>` : ''}
