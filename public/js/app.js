@@ -632,7 +632,6 @@ async function loadPopups(season = 'all') {
 
 // ── 갤러리 (그리드) ──────────────────────────────────────────────
 function buildGalleryHtml(popup) {
-  if (!isAdminMode) return '';
   const items  = popup.media_items || [];
   const addBtn = isAdminMode ? `
     <label class="gallery-add-item">
@@ -972,12 +971,12 @@ function getSavedRoutes() {
 }
 
 function buildSavedRoutesHtml() {
-  const routes = getSavedRoutes();
+  const routes = getSavedRoutes().filter(r => r && r.id && Array.isArray(r.popupIds));
   if (routes.length === 0) {
     return `<div class="empty-state"><div class="empty-icon">🗺️</div><p>저장된 동선이 없어요.<br>동선 만들기 후 저장해보세요!</p></div>`;
   }
   return routes.slice().reverse().map(r => {
-    const validCount = r.popupIds.filter(id => popups.find(p => p.id === id && p.lat && p.lng)).length;
+    const validCount = r.popupIds.filter(id => popups.find(p => String(p.id) === String(id) && p.lat && p.lng)).length;
     return `
       <div class="saved-route-item" onclick="loadSavedRoute('${r.id}')">
         <div class="saved-route-info">
@@ -987,6 +986,15 @@ function buildSavedRoutesHtml() {
         <button class="fav-remove-btn" onclick="event.stopPropagation();deleteSavedRouteItem('${r.id}')" title="삭제">✕</button>
       </div>`;
   }).join('');
+}
+
+function openFavModalRoutes() {
+  document.getElementById('favList').innerHTML = buildFavListHtml();
+  const footer = document.getElementById('favRouteFooter');
+  const count = popups.filter(p => getFavorites().has(p.id) && p.lat && p.lng).length;
+  footer.style.display = count >= 2 ? 'block' : 'none';
+  switchFavTab('routes');
+  openModal('favModal');
 }
 
 function deleteSavedRouteItem(id) {
@@ -1049,11 +1057,21 @@ function confirmSaveRoute() {
 
   const routes = getSavedRoutes();
   routes.push({ id: 'route_' + Date.now(), name, popupIds: [...routeOrder], createdAt: new Date().toISOString() });
-  localStorage.setItem('saved_routes', JSON.stringify(routes));
+  try { localStorage.setItem('saved_routes', JSON.stringify(routes)); }
+  catch { toast('저장에 실패했어요. 저장 공간을 확인해주세요.', 'error'); return; }
 
-  toast(`"${name}" 동선이 저장됐어요! 🗺️`, 'success');
-  document.getElementById('routeSaveSection').style.display = 'none';
   input.value = '';
+  const section = document.getElementById('routeSaveSection');
+  section.innerHTML = `
+    <div class="route-save-row" style="justify-content:space-between;align-items:center;padding:8px 0;">
+      <span style="font-size:13px;color:var(--primary-dark);font-weight:700;">✅ "${esc(name)}" 저장 완료!</span>
+      <button class="btn btn-outline btn-sm" onclick="openFavModalRoutes()">내 동선 보기</button>
+    </div>`;
+  section.style.display = '';
+
+  // 찜 모달 내 동선 탭 즉시 새로고침 (모달이 열려 있는 경우)
+  const routesPane = document.getElementById('savedRoutesList');
+  if (routesPane) routesPane.innerHTML = buildSavedRoutesHtml();
 }
 
 // ── 동선 만들기 ──────────────────────────────────────────────────
@@ -1250,9 +1268,11 @@ function passesFilters(p) {
     if (today < start || today > end) return false;
 
     // 운영시간 체크 (등록된 경우)
+    if (isClosedToday(p.closed_days)) return false;
     if (p.opening_hours) {
-      const firstEntry = p.opening_hours.split('|')[0].trim();
-      const m = firstEntry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
+      const entry = findTodayEntry(p.opening_hours);
+      if (!entry) return false;
+      const m = entry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
       if (m) {
         const nowMin   = now.getHours() * 60 + now.getMinutes();
         const openMin  = parseInt(m[1]) * 60 + parseInt(m[2]);
@@ -1325,6 +1345,49 @@ function isClosedToday(text) {
   return new RegExp(`(^|[·,\\s/])${dayKo}([·,\\s/요]|$)`).test(text);
 }
 
+const _DAY_IDX = { '일': 0, '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6 };
+
+// opening_hours 항목 하나에서 오늘이 운영 요일인지 확인
+// 요일 표기 없으면 null 반환 → 모든 요일에 적용
+function parseDaysFromEntry(entry) {
+  const noTime = entry.replace(/\d{1,2}:\d{2}\s*[~\-–]\s*\d{1,2}:\d{2}/g, '').trim();
+  if (!noTime) return null;
+  if (/주말/.test(noTime)) return [0, 6];
+  if (/평일|주중/.test(noTime)) return [1, 2, 3, 4, 5];
+  if (/매일|전일/.test(noTime)) return null;
+
+  // "금요일-일요일" / "금~일" 범위 형태
+  const range = noTime.match(/([일월화수목금토])(?:요일)?\s*[~\-–]\s*([일월화수목금토])(?:요일)?/);
+  if (range) {
+    const s = _DAY_IDX[range[1]], e = _DAY_IDX[range[2]];
+    const days = [];
+    for (let d = s, i = 0; i <= 7; i++, d = (d + 1) % 7) {
+      days.push(d);
+      if (d === e) break;
+    }
+    return days;
+  }
+
+  // "월·화·수" / "월,화" 개별 요일 형태
+  const days = [];
+  Object.entries(_DAY_IDX).forEach(([ko, idx]) => {
+    if (entry.includes(ko + '요일') || new RegExp(`(^|[·,\\s/])${ko}([·,\\s/요]|$)`).test(noTime))
+      days.push(idx);
+  });
+  return days.length ? days : null;
+}
+
+// 오늘에 해당하는 opening_hours 항목 반환 (없으면 null → 금일 휴무)
+function findTodayEntry(openingHours) {
+  if (!openingHours) return null;
+  const todayDay = new Date().getDay();
+  for (const entry of openingHours.split('|').map(e => e.trim()).filter(Boolean)) {
+    const days = parseDaysFromEntry(entry);
+    if (days === null || days.includes(todayDay)) return entry;
+  }
+  return null;
+}
+
 function getOperatingStatus(popup) {
   const now   = new Date();
   const today = new Date(now); today.setHours(0, 0, 0, 0);
@@ -1332,8 +1395,9 @@ function getOperatingStatus(popup) {
   if (popup.is_permanent || !popup.end_date) {
     if (isClosedToday(popup.closed_days)) return { icon: '🔴', text: '금일 휴무', cls: 'status-holiday' };
     if (popup.opening_hours) {
-      const firstEntry = popup.opening_hours.split('|')[0].trim();
-      const m = firstEntry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
+      const entry = findTodayEntry(popup.opening_hours);
+      if (!entry) return { icon: '🔴', text: '금일 휴무', cls: 'status-holiday' };
+      const m = entry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
       if (m) {
         const nowMin   = now.getHours() * 60 + now.getMinutes();
         const openMin  = +m[1] * 60 + +m[2];
@@ -1357,8 +1421,9 @@ function getOperatingStatus(popup) {
     return { icon: '🔴', text: '금일 휴무', cls: 'status-holiday' };
   }
   if (popup.opening_hours) {
-    const firstEntry = popup.opening_hours.split('|')[0].trim();
-    const m = firstEntry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
+    const entry = findTodayEntry(popup.opening_hours);
+    if (!entry) return { icon: '🔴', text: '금일 휴무', cls: 'status-holiday' };
+    const m = entry.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/);
     if (m) {
       const nowMin   = now.getHours() * 60 + now.getMinutes();
       const openMin  = +m[1] * 60 + +m[2];

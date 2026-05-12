@@ -522,8 +522,8 @@ video.carousel-media { object-fit: contain; background: #000; }
 .tip-bullet { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 .tip-text { flex: 1; color: var(--text); word-break: break-all; }
 .tip-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
-.tips-input-row { display: flex; gap: 4px; }
-.tips-input { flex: 1; padding: 6px 10px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; outline: none; background: var(--surface, #fff); color: var(--text); }
+.tips-input-row { display: flex; gap: 4px; justify-content: flex-end; }
+.tips-input { width: auto; min-width: 0; padding: 6px 10px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; outline: none; background: var(--surface, #fff); color: var(--text); }
 .tips-input:focus { border-color: var(--primary); }
 .tips-submit-btn { padding: 6px 10px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .tips-submit-btn:hover { background: var(--primary-dark); }
