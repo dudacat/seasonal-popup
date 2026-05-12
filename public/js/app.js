@@ -1589,6 +1589,15 @@ function relativeTime(dateStr) {
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
+function getMyTipIds() {
+  try { return new Set(JSON.parse(sessionStorage.getItem('my_tip_ids') || '[]')); }
+  catch { return new Set(); }
+}
+function addMyTipId(id) {
+  const ids = getMyTipIds(); ids.add(id);
+  sessionStorage.setItem('my_tip_ids', JSON.stringify([...ids]));
+}
+
 async function loadTips(popupId) {
   const list = document.getElementById('tipsList');
   if (!list) return;
@@ -1599,15 +1608,75 @@ async function loadTips(popupId) {
       list.innerHTML = '<li class="tips-empty">아직 팁이 없어요. 첫 번째로 남겨보세요!</li>';
       return;
     }
-    list.innerHTML = tips.map(t =>
-      `<li class="tip-item">
+    const myIds = getMyTipIds();
+    list.innerHTML = tips.map(t => {
+      const isOwn   = myIds.has(t.id);
+      const canEdit = isOwn;
+      const canDel  = isOwn || isAdminMode;
+      return `<li class="tip-item" id="tip-${t.id}" data-text="${esc(t.text)}">
         <span class="tip-bullet">💡</span>
         <span class="tip-text">${esc(t.text)}</span>
         <span class="tip-time">${relativeTime(t.created_at)}</span>
-      </li>`
-    ).join('');
+        ${canEdit || canDel ? `<span class="tip-actions">
+          ${canEdit ? `<button class="tip-action-btn" onclick="editTip('${t.id}')" title="수정">✏️</button>` : ''}
+          ${canDel  ? `<button class="tip-action-btn tip-delete-btn" onclick="deleteTip('${t.id}','${popupId}')" title="삭제">✕</button>` : ''}
+        </span>` : ''}
+      </li>`;
+    }).join('');
   } catch {
     list.innerHTML = '<li class="tips-empty">불러오기 실패</li>';
+  }
+}
+
+function editTip(tipId) {
+  const li = document.getElementById(`tip-${tipId}`);
+  if (!li) return;
+  const currentText = li.dataset.text;
+  const popupId = selectedPopupId;
+  li.innerHTML = `
+    <span class="tip-bullet">💡</span>
+    <input class="tip-edit-input" id="tip-edit-${tipId}" type="text"
+      value="${esc(currentText)}" maxlength="100">
+    <button class="tip-action-btn tip-save-btn" onclick="updateTip('${tipId}','${popupId}')" title="저장">✓</button>
+    <button class="tip-action-btn" onclick="loadTips('${popupId}')" title="취소">✕</button>`;
+  const inp = document.getElementById(`tip-edit-${tipId}`);
+  if (inp) { inp.focus(); inp.select(); inp.onkeydown = e => { if (e.key === 'Enter') updateTip(tipId, popupId); if (e.key === 'Escape') loadTips(popupId); }; }
+}
+
+async function updateTip(tipId, popupId) {
+  const inp = document.getElementById(`tip-edit-${tipId}`);
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) { inp.focus(); return; }
+  try {
+    const res  = await fetch(`/api/tips/${tipId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || '수정 실패', 'error'); return; }
+    await loadTips(popupId);
+    toast('리뷰가 수정됐어요!', 'success');
+  } catch {
+    toast('서버 오류가 발생했습니다.', 'error');
+  }
+}
+
+async function deleteTip(tipId, popupId) {
+  if (!confirm('이 리뷰를 삭제하시겠습니까?')) return;
+  try {
+    const res  = await fetch(`/api/tips/${tipId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminPassword: isAdminMode ? storedAdminPassword : undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || '삭제 실패', 'error'); return; }
+    await loadTips(popupId);
+    toast('리뷰가 삭제됐어요!', 'success');
+  } catch {
+    toast('서버 오류가 발생했습니다.', 'error');
   }
 }
 
@@ -1625,9 +1694,10 @@ async function submitTip(popupId) {
     });
     const data = await res.json();
     if (!res.ok) { toast(data.error || '등록 실패', 'error'); return; }
+    addMyTipId(data.id);
     input.value = '';
     await loadTips(popupId);
-    toast('팁이 등록되었어요!');
+    toast('리뷰가 등록됐어요!', 'success');
   } catch {
     toast('서버 오류가 발생했습니다.', 'error');
   } finally {
