@@ -1476,13 +1476,12 @@ function showDetail(popup) {
     <div class="detail-body">
       ${(() => {
         const tags = (popup.keywords || '').split(',').map(t => t.trim()).filter(Boolean);
-        const firstTag = tags[0] || '';
-        const accentBadge = firstTag ? `<span class="detail-accent-badge">${esc(firstTag)}</span>` : '';
+        const accentBadges = tags.map(t => `<span class="detail-accent-badge">${esc(t)}</span>`).join('');
         const feeParts = (popup.admission_fee || '').split('.').map(s => s.trim()).filter(Boolean);
         const feeBadge = feeParts.map((p, i) =>
           `<span class="detail-fee-badge${i > 0 ? ' detail-fee-badge-alt' : ''}">${esc(p)}</span>`
         ).join(' ');
-        const badgeRow = accentBadge ? `<div class="detail-badge-row">${accentBadge}</div>` : '';
+        const badgeRow = accentBadges ? `<div class="detail-badge-row">${accentBadges}</div>` : '';
         return `
       <div class="detail-title-section">
         ${badgeRow}
